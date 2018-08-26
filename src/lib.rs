@@ -11,6 +11,11 @@ impl<T> AtomicArc<T> {
     /// Create a new `AtomicArc`.
     pub fn new(data: Option<T>) -> AtomicArc<T> {
         let arc = data.map(|val| Arc::new(val));
+        AtomicArc::from_arc(arc)
+    }
+
+    /// Create a new `AtomicArc` from an `Arc`.
+    pub fn from_arc(arc: Option<Arc<T>>) -> AtomicArc<T> {
         let ptr = into_raw(arc) as *mut _;
         let ptr = AtomicPtr::new(ptr);
         AtomicArc {
