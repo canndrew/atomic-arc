@@ -2,11 +2,13 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
 use std::ptr;
 
+/// A reference-counted, nullable, atomic pointer.
 pub struct AtomicArc<T> {
     ptr: AtomicPtr<T>,
 }
 
 impl<T> AtomicArc<T> {
+    /// Create a new `AtomicArc`.
     pub fn new(data: Option<T>) -> AtomicArc<T> {
         let arc = data.map(|val| Arc::new(val));
         let ptr = into_raw(arc) as *mut _;
@@ -16,7 +18,9 @@ impl<T> AtomicArc<T> {
         }
     }
 
-    pub fn get_mut(&mut self) -> Option<Arc<T>> {
+    /// Get the value of the pointer as an `Arc`.
+    /// This can be done non-atomically since we have a unique reference to the `AtomicArc`.
+    pub fn get_arc(&mut self) -> Option<Arc<T>> {
         let ptr = *self.ptr.get_mut();
         unsafe {
             let arc = from_raw(ptr);
@@ -26,6 +30,15 @@ impl<T> AtomicArc<T> {
         }
     }
 
+    /// Get a reference to the value stored in this `AtomicArc`.
+    /// This can be done non-atomically since we have a unique reference to the `AtomicArc`.
+    pub fn get(&mut self) -> Option<&T> {
+        unsafe {
+            self.ptr.get_mut().as_ref()
+        }
+    }
+
+    /// Convert this `AtomicArc` into a plain old `Arc`
     pub fn into_arc(mut self) -> Option<Arc<T>> {
         let ptr = *self.ptr.get_mut();
         unsafe {
@@ -33,6 +46,7 @@ impl<T> AtomicArc<T> {
         }
     }
 
+    /// Load the value stored in this `AtomicArc`
     pub fn load(&self, order: Ordering) -> Option<Arc<T>> {
         let ptr = self.ptr.load(order);
         unsafe {
@@ -43,10 +57,13 @@ impl<T> AtomicArc<T> {
         }
     }
 
+    /// Store a new value.
     pub fn store(&self, new: Option<Arc<T>>, order: Ordering) {
         let _drop = self.swap(new, order);
     }
 
+    /// Atomically swap the value stored in this `AtomicArc` with the new value, returning the old
+    /// value.
     pub fn swap(&self, new: Option<Arc<T>>, order: Ordering) -> Option<Arc<T>> {
         let new_ptr = into_raw(new) as *mut _;
         let old_ptr = self.ptr.swap(new_ptr, order);
@@ -55,6 +72,10 @@ impl<T> AtomicArc<T> {
         }
     }
 
+    /// Atomically swaps the value stored in this `AtomicArc` if `old` points to the same `Arc` as
+    /// what is currently stored. This does not compare the underlying data, merely that the
+    /// pointers match. Returns the previous value stored in this `AtomicArc`, which will be the
+    /// same as `old` if the swap was successful.
     pub fn compare_and_swap(
         &self,
         old: Option<Arc<T>>,
